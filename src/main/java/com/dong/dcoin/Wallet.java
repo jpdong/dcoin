@@ -2,11 +2,14 @@ package com.dong.dcoin;
 
 import java.security.*;
 import java.security.spec.ECGenParameterSpec;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 public class Wallet {
     public PrivateKey privateKey;
     public PublicKey publicKey;
+    public Map<String, TransactionOutput> unspentOutputMap = new HashMap<>();
 
     public Wallet() {
         generateKeyPair();
@@ -29,13 +32,37 @@ public class Wallet {
     }
 
     public float getBalance() {
-        float totoal = 0;
+        float total = 0;
         for (Map.Entry<String, TransactionOutput> entry : DChain.UTXOs.entrySet()) {
-            TransactionOutput UTXO = entry.getValue();
-            if (UTXO.isMine(publicKey)) {
-                DChain.UTXOs.put(UTXO.id, UTXO);
+            TransactionOutput output = entry.getValue();
+            if (output.isMine(publicKey)) {
+                unspentOutputMap.put(output.id, output);
+                total += output.value;
             }
         }
-        return 0;
+        return total;
+    }
+
+    public Transaction sendFunds(PublicKey to, float value) {
+        if (getBalance() < value) {
+            System.out.println("No Enough funds  to create transaction.");
+            return null;
+        }
+        ArrayList<TransactionInput> inputs = new ArrayList<>();
+        float total = 0;
+        for (Map.Entry<String, TransactionOutput> entry : unspentOutputMap.entrySet()) {
+            TransactionOutput output = entry.getValue();
+            total += output.value;
+            inputs.add(new TransactionInput(output.id));
+            if (total > value) {
+                break;
+            }
+        }
+        Transaction newTransaction = new Transaction(publicKey, to, value, inputs);
+        newTransaction.generateSignature(privateKey);
+        for (TransactionInput input : inputs) {
+            unspentOutputMap.remove(input.transactionOutputId);
+        }
+        return newTransaction;
     }
 }

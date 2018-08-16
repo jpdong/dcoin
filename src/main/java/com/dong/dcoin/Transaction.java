@@ -1,5 +1,11 @@
 package com.dong.dcoin;
 
+import com.google.gson.TypeAdapter;
+import com.google.gson.annotations.Expose;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+
+import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.ArrayList;
@@ -10,16 +16,19 @@ public class Transaction {
     public PublicKey from;
     public PublicKey to;
     public float value;
+
     public byte[] signature;
+
     private static int sequence = 0;
 
     public ArrayList<TransactionInput> inputs = new ArrayList<>();
     public ArrayList<TransactionOutput> outputs = new ArrayList<>();
 
-    public Transaction(PublicKey from, PublicKey to, float value) {
+    public Transaction(PublicKey from, PublicKey to, float value, ArrayList<TransactionInput> inputs) {
         this.from = from;
         this.to = to;
         this.value = value;
+        this.inputs = inputs;
     }
 
     private String calculateHash() {
@@ -43,7 +52,7 @@ public class Transaction {
             return false;
         }
         for (TransactionInput input : inputs) {
-            input.UTXO = DChain.UTXOs.get(input.transactionOutputId);
+            input.unspentTransactionOutput = DChain.UTXOs.get(input.transactionOutputId);
         }
         if (getInputValues() < DChain.minimumTransaction) {
             System.out.println("Transaction Inputs too small:" + getInputValues());
@@ -52,15 +61,17 @@ public class Transaction {
         float leftOver = getInputValues() - value;
         transactionId = calculateHash();
         outputs.add(new TransactionOutput(this.to, value, transactionId));
+        System.out.println(String.format("processTransaction:id(%s):to(%s):value(%f)",transactionId,Util.getStringFromKey(to),value));
         outputs.add(new TransactionOutput(this.from, leftOver, transactionId));
+        System.out.println(String.format("processTransaction:id(%s):to(%s):value(%f)",transactionId,Util.getStringFromKey(from),leftOver));
         for (TransactionOutput output : outputs) {
             DChain.UTXOs.put(output.id, output);
         }
         for (TransactionInput input : inputs) {
-            if (input.UTXO == null) {
+            if (input.unspentTransactionOutput == null) {
                 continue;
             }
-            DChain.UTXOs.remove((input.UTXO.id));
+            DChain.UTXOs.remove((input.unspentTransactionOutput.id));
         }
         return true;
     }
@@ -68,10 +79,10 @@ public class Transaction {
     public float getInputValues() {
         float total = 0;
         for (TransactionInput input : inputs) {
-            if (input.UTXO == null) {
+            if (input.unspentTransactionOutput == null) {
                 continue;
             }
-            total += input.UTXO.value;
+            total += input.unspentTransactionOutput.value;
         }
         return total;
     }
@@ -83,4 +94,22 @@ public class Transaction {
         }
         return total;
     }
+
+    public static class TransactionTypeAdapter extends TypeAdapter<Transaction> {
+        @Override
+        public void write(JsonWriter out, Transaction transaction) throws IOException {
+            out.beginObject();
+            out.name("transactionId").value(transaction.transactionId);
+            out.name("from").value(Util.getStringFromKey(transaction.from));
+            out.name("to").value(Util.getStringFromKey(transaction.to));
+            out.name("value").value(Float.toString(transaction.value));
+            out.endObject();
+        }
+
+        @Override
+        public Transaction read(JsonReader in) throws IOException {
+            return null;
+        }
+    }
+
 }

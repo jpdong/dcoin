@@ -2,7 +2,9 @@ package com.dong.dcoin;
 
 import java.io.UnsupportedEncodingException;
 import java.security.*;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
 public class Util {
 
@@ -53,5 +55,23 @@ public class Util {
 
     public static String getStringFromKey(Key key) {
         return Base64.getEncoder().encodeToString(key.getEncoded());
+    }
+
+    public static String getRoot(List<Transaction> transactions) {
+        int count = transactions.size();
+        List<String> preTreeLayer = new ArrayList<>();
+        for (Transaction transaction : transactions) {
+            preTreeLayer.add(transaction.transactionId);
+        }
+        List<String> treeLayer = preTreeLayer;
+        while (count > 1) {
+            treeLayer = new ArrayList<>();
+            for (int i = 1; i < preTreeLayer.size(); i++) {
+                treeLayer.add(applySha256(preTreeLayer.get(i - 1) + preTreeLayer.get(i)));
+            }
+            count = treeLayer.size();
+            preTreeLayer = treeLayer;
+        }
+        return treeLayer.size() == 1 ? treeLayer.get(0):"";
     }
 }
